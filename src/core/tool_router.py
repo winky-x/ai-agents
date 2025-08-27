@@ -11,7 +11,7 @@ from datetime import datetime
 from loguru import logger
 
 from .policy import PolicyEngine, PolicyValidationResult
-from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt
+from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt, call_gemini_vision
 from .browser import BrowserController
 from .rag import SimpleRAG
 
@@ -365,9 +365,12 @@ class ToolRouter:
         prompt = args.get("prompt", "")
         mode = args.get("mode") or choose_model_mode_from_prompt(prompt)
         model = args.get("model")  # optional explicit model override
+        images = args.get("images") or []
 
-        # Route by mode unless explicit model provided
-        if model:
+        # Vision branch
+        if images:
+            result = call_gemini_vision(prompt, images)
+        elif model:
             # If user forces a model via OpenRouter
             result = call_openrouter_deepseek(prompt, model=model)
         elif mode == "deep":

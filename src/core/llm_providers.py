@@ -6,7 +6,7 @@ LLM provider integrations
 
 import os
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 
 def call_gemini_flash(prompt: str) -> Dict[str, Any]:
@@ -56,6 +56,25 @@ def call_openrouter_deepseek(prompt: str, model: str = "deepseek/deepseek-r1:fre
             return {"success": True, "model": model, "text": text}
     except Exception as exc:
         return {"success": False, "error": f"OpenRouter error: {exc}"}
+
+
+def call_gemini_vision(prompt: str, image_paths: List[str]) -> Dict[str, Any]:
+    """Call Gemini multimodal with local images."""
+    api_key = os.getenv("GOOGLE_API_KEY", "").strip()
+    if not api_key:
+        return {"success": False, "error": "Missing GOOGLE_API_KEY"}
+    try:
+        import google.generativeai as genai  # type: ignore
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        inputs = [prompt]
+        for p in image_paths:
+            inputs.append({"mime_type": "image/png", "data": Path(p).read_bytes()})
+        resp = model.generate_content(inputs)
+        text = getattr(resp, "text", "")
+        return {"success": True, "model": "gemini-vision", "text": text}
+    except Exception as exc:
+        return {"success": False, "error": f"Gemini vision error: {exc}"}
 
 
 def choose_model_mode_from_prompt(prompt: str) -> str:

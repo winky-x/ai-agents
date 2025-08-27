@@ -83,11 +83,11 @@ profiles:
       - shell.exec:
           require_manual_confirmation: true
           max_commands_per_session: 10
-          allowed_commands: ["ls", "cat", "grep", "find", "echo"]
+          allowed_commands: ["ls", "cat", "grep", "find", "echo", "head", "tail", "pwd"]
           blocked_commands: ["rm", "rmdir", "chmod", "chown", "sudo"]
       - browser.control:
           require_manual_confirmation: true
-          max_pages_per_session: 5
+          max_pages_per_session: 10
           headless_only: true
       - rag.search:
           require_manual_confirmation: false

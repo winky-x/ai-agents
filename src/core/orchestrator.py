@@ -53,6 +53,7 @@ class Orchestrator:
         self.tasks: Dict[str, Task] = {}
         self.active_tasks: Dict[str, Task] = {}
         self.task_queue: List[str] = []
+        self.memory: List[Dict[str, Any]] = []
         
         # Initialize logging
         self._setup_logging()
@@ -139,6 +140,14 @@ class Orchestrator:
         
         self.tasks[task_id] = task
         self.task_queue.append(task_id)
+        # Persist task
+        try:
+            import json, os
+            os.makedirs("data/tasks", exist_ok=True)
+            with open(f"data/tasks/{task_id}.json", "w", encoding="utf-8") as f:
+                json.dump(asdict(task), f, default=str)
+        except Exception:
+            pass
         
         logger.info(f"Created task {task_id}: {goal}")
         return task_id
@@ -363,12 +372,26 @@ class Orchestrator:
                     step.result = verify_result
                     step.status = "completed"
                 
+                # Add to memory
+                self.memory.append({"task": task.id, "step": step.id, "type": step.type, "status": step.status, "desc": step.description})
                 results.append(asdict(step))
             
             return {"success": True, "results": results}
             
         except Exception as e:
             logger.error(f"Plan execution error: {e}")
+            # Simple retry once for tool steps
+            if "step" in locals() and step.type == "tool" and step.status == "failed":
+                logger.warning("Retrying failed tool step once")
+                try:
+                    tool_result = self._execute_tool_step(step, task.user_context)
+                    if tool_result.get("success"):
+                        step.status = "completed"
+                        step.result = tool_result
+                        results.append(asdict(step))
+                        return {"success": True, "results": results}
+                except Exception:
+                    pass
             return {"success": False, "error": str(e)}
     
     def _execute_tool_step(self, step: TaskStep, user_context: Dict) -> Dict:
