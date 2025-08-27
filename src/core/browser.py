@@ -87,6 +87,23 @@ class BrowserController:
             self._page.click(selector)
             return {"status": "ok"}
 
+        if name == "click_download":
+            selector = args.get("selector")
+            filename = args.get("filename")
+            if not selector:
+                return {"status": "error", "error": "Missing selector"}
+            with self._page.expect_download() as dl_info:
+                self._page.click(selector)
+            download = dl_info.value
+            save_as = self.download_dir / (filename or download.suggested_filename)
+            download.save_as(str(save_as))
+            return {"status": "ok", "path": str(save_as)}
+
+        if name == "screenshot":
+            path = args.get("path") or str(self.download_dir / "screenshot.png")
+            self._page.screenshot(path=path, full_page=True)
+            return {"status": "ok", "path": path}
+
         if name == "download":
             # Download by direct URL
             url = args.get("url")
