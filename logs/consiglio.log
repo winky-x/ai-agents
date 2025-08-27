@@ -1,0 +1,15 @@
+2025-08-15 05:03:21 | INFO | core.orchestrator:__init__:62 | Consiglio Orchestrator initialized
+2025-08-15 05:03:28 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:28 | INFO | core.orchestrator:create_task:140 | Created task task_20250815_050328_0: Search for information about AI agents and summarize the findings
+2025-08-15 05:03:28 | INFO | core.tool_router:_log_audit_event:270 | Audit: tool_call_executed for tool web.get (ID: 9dfa49bf-d820-41a2-a174-08f4cdec732b)
+2025-08-15 05:03:31 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:40 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:43 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:43 | INFO | core.policy:set_profile:76 | Security profile set to: admin
+2025-08-15 05:03:51 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:51 | INFO | core.policy:set_profile:76 | Security profile set to: admin
+2025-08-15 05:03:54 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:03:54 | INFO | core.orchestrator:create_task:140 | Created task task_20250815_050354_0: Search the web for latest AI news
+2025-08-15 05:03:54 | INFO | core.tool_router:_log_audit_event:270 | Audit: tool_call_executed for tool web.get (ID: d9529c2a-5325-4841-a967-eb796ff0cf1f)
+2025-08-15 05:03:58 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-15 05:04:23 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
