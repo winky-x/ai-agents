@@ -376,5 +376,120 @@ def demo(ctx):
         console.print(f"[red]Demo failed: {result['error']}[/red]")
 
 
+@cli.command()
+@click.pass_context
+def chat(ctx):
+    """Interactive chat to talk to the agent and control tasks"""
+    orchestrator = ctx.obj['orchestrator']
+
+    console.print(Panel.fit(
+        "[bold blue]Consiglio Chat[/bold blue]\n"
+        "Type your message to create a task from it.\n"
+        "Use slash commands to control tasks:\n"
+        "- /task <goal>\n"
+        "- /exec <task_id>\n"
+        "- /tasks\n"
+        "- /approve\n"
+        "- /status\n"
+        "- /profile <name>\n"
+        "- /audit\n"
+        "- /help\n"
+        "- /quit",
+        title="Interactive Mode",
+        border_style="magenta"
+    ))
+
+    while True:
+        try:
+            user_input = Prompt.ask("[bold green]You[/bold green]")
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[yellow]Exiting chat...[/yellow]")
+            break
+
+        if not user_input:
+            continue
+
+        if user_input.startswith('/'):
+            parts = user_input.strip().split(maxsplit=1)
+            cmd = parts[0].lower()
+            arg = parts[1] if len(parts) > 1 else ""
+
+            if cmd == '/quit' or cmd == '/exit':
+                console.print("[yellow]Goodbye![/yellow]")
+                break
+
+            if cmd == '/help':
+                console.print("""
+Commands:
+/task <goal>        Create a task
+/exec <task_id>     Execute a task
+/tasks              List tasks
+/approve            Review and approve pending tool calls
+/status             Show system status
+/profile <name>     Set security profile
+/audit              Show recent audit log
+/help               Show this help
+/quit               Exit chat
+""")
+                continue
+
+            if cmd == '/status':
+                ctx.invoke(status)
+                continue
+
+            if cmd == '/tasks':
+                ctx.invoke(tasks)
+                continue
+
+            if cmd == '/audit':
+                ctx.invoke(audit)
+                continue
+
+            if cmd == '/approve':
+                ctx.invoke(approve)
+                continue
+
+            if cmd == '/profile':
+                if not arg:
+                    console.print("[red]Usage: /profile <name>[/red]")
+                else:
+                    ctx.invoke(profile, profile_name=arg)
+                continue
+
+            if cmd == '/task':
+                if not arg:
+                    console.print("[red]Usage: /task <goal>[/red]")
+                    continue
+                goal = arg
+                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+                    p = progress.add_task("Creating task...", total=None)
+                    task_id = orchestrator.create_task(goal)
+                    progress.update(p, completed=True)
+                console.print(f"[green]Task created:[/green] {task_id}")
+                if Confirm.ask("Execute now?", default=False):
+                    ctx.invoke(execute, task_id=task_id)
+                continue
+
+            if cmd == '/exec':
+                if not arg:
+                    console.print("[red]Usage: /exec <task_id>[/red]")
+                    continue
+                ctx.invoke(execute, task_id=arg)
+                continue
+
+            console.print(f"[red]Unknown command:[/red] {cmd}. Type /help")
+            continue
+
+        # Natural language: create a task from the message
+        goal = user_input.strip()
+        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            p = progress.add_task("Creating task from message...", total=None)
+            task_id = orchestrator.create_task(goal)
+            progress.update(p, completed=True)
+        console.print(f"[green]Created task[/green] {task_id} for: [blue]{goal}[/blue]")
+        if Confirm.ask("Execute now?", default=True):
+            ctx.invoke(execute, task_id=task_id)
+
+
 if __name__ == '__main__':
     cli()
