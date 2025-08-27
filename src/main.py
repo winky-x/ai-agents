@@ -376,5 +376,81 @@ def demo(ctx):
         console.print(f"[red]Demo failed: {result['error']}[/red]")
 
 
+@cli.command()
+@click.pass_context
+def chat(ctx):
+    """Interactive natural language chat with smart action confirmations"""
+    orchestrator = ctx.obj['orchestrator']
+
+    winky = """
+ __        __        _         _         _        _        
+ \ \      / /__  ___| | ____ _| |_ _   _| | __ _| |_ ___  
+  \ \ /\ / / _ \/ __| |/ / _` | __| | | | |/ _` | __/ _ \ 
+   \ V  V /  __/ (__|   < (_| | |_| |_| | | (_| | || (_) |
+    \_/\_/ \___|\___|_|\_\__,_|\__|\__,_|_|\__,_|\__\___/ 
+                         [bold cyan]Winky AI Agent[/bold cyan]
+    """
+    console.print(Panel.fit(winky, title="Welcome", border_style="magenta"))
+    console.print(Text("Type what you want. I'll detect if it's a command, web search, or a question.\nI'll ask before running any command or external action.", style="bright_black"))
+
+    while True:
+        try:
+            user_input = Prompt.ask("[bold green]You[/bold green]")
+        except (EOFError, KeyboardInterrupt):
+            console.print("\n[yellow]Exiting chat...[/yellow]")
+            break
+
+        if not user_input:
+            continue
+
+        text = user_input.strip()
+        lower = text.lower()
+        is_shell = lower.startswith("run ") or lower.startswith("execute ") or lower.startswith("! ") or lower.startswith("bash ") or lower.startswith("sh ") or lower.startswith("sudo ") or lower.startswith("apt ") or lower.startswith("pip ") or lower.startswith("git ")
+        is_search = any(k in lower for k in ["search ", "google ", "look up", "find info", "web search"]) and not is_shell
+
+        if is_shell:
+            cmd = text.lstrip("! ")
+            if not Confirm.ask(f"Run shell command?\n[bold]{cmd}[/bold]", default=False):
+                console.print("[bright_black]Cancelled.[/bright_black]")
+                continue
+            result = orchestrator.tool_router.route_tool_call({
+                "tool": "shell.exec",
+                "args": {"command": cmd},
+                "reason": "User requested shell execution from chat",
+            })
+            if result.get("requires_confirmation"):
+                if Confirm.ask("Approve this tool call now?", default=False):
+                    approve_result = orchestrator.tool_router.approve_tool_call(result.get("tool_call_id"))
+                    console.print(approve_result)
+                else:
+                    console.print("[yellow]Pending approval. Use 'approve' command later.[/yellow]")
+            else:
+                console.print(result.get("data", {}))
+            continue
+
+        if is_search:
+            if not Confirm.ask("Perform a web action/search?", default=True):
+                console.print("[bright_black]Skipped web action.[/bright_black]")
+            else:
+                result = orchestrator.tool_router.route_tool_call({
+                    "tool": "web.get",
+                    "args": {"url": "https://example.com"},
+                    "reason": f"Search intent from: {text[:80]}",
+                })
+                console.print(result)
+            continue
+
+        result = orchestrator.tool_router.route_tool_call({
+            "tool": "llm.call",
+            "args": {"prompt": text},
+            "reason": "Chat response",
+        })
+        if result.get("success"):
+            data = result.get("data", {})
+            console.print(Panel.fit(data.get("text", ""), title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
+        else:
+            console.print(f"[red]{result.get('error')}[/red]")
+
+
 if __name__ == '__main__':
     cli()

@@ -61,6 +61,9 @@ class Orchestrator:
         self._create_directories()
         
         logger.info("Consiglio Orchestrator initialized")
+
+        # Initialize simple autopilot flag
+        self.autopilot_enabled = True
     
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from environment and .env file"""
@@ -216,7 +219,7 @@ class Orchestrator:
     def _generate_plan(self, goal: str) -> Optional[List[Dict]]:
         """Generate execution plan for a goal"""
         try:
-            # For now, use a simple rule-based planner
+            # Simple heuristic planner with web flow for logo finding
             # In production, this would use an LLM planner
             
             if "web" in goal.lower() or "search" in goal.lower():
@@ -258,6 +261,36 @@ class Orchestrator:
                 ]
             
             else:
+                lower = goal.lower()
+                if "logo" in lower and ("find" in lower or "search" in lower):
+                    return [
+                        {
+                            "id": 1,
+                            "type": "llm",
+                            "description": "Clarify requirements and plan steps",
+                            "action": {
+                                "tool": "llm.call",
+                                "args": {"prompt": f"Given the goal '{goal}', outline concise steps to search web and download a suitable logo."}
+                            },
+                            "must_confirm": False
+                        },
+                        {
+                            "id": 2,
+                            "type": "tool",
+                            "description": "Open browser and search for the logo",
+                            "action": {
+                                "tool": "browser.control",
+                                "args": {
+                                    "action": [
+                                        {"name": "open"},
+                                        {"name": "search", "args": {"query": goal}}
+                                    ],
+                                    "headless": True
+                                }
+                            },
+                            "must_confirm": True
+                        }
+                    ]
                 # Generic plan
                 return [
                     {
@@ -371,16 +404,29 @@ class Orchestrator:
         }
     
     def _execute_llm_step(self, step: TaskStep) -> Dict:
-        """Execute an LLM call step"""
-        # For now, return a placeholder
-        # In production, this would use the actual LLM provider
-        return {
-            "success": True,
-            "type": "llm_call",
-            "prompt": step.action.get("args", {}).get("prompt", ""),
-            "response": "LLM call placeholder - not implemented yet",
-            "message": "LLM call placeholder - not implemented yet"
-        }
+        """Execute an LLM call step via tool router to leverage policy and providers"""
+        try:
+            args = step.action.get("args", {})
+            result = self.tool_router.route_tool_call({
+                "tool": "llm.call",
+                "args": args,
+                "reason": step.description,
+            })
+            if result.get("success"):
+                data = result.get("data", {})
+                return {
+                    "success": True,
+                    "type": "llm_call",
+                    "prompt": args.get("prompt", ""),
+                    "response": data.get("text", ""),
+                    "model": data.get("model"),
+                    "mode": data.get("mode"),
+                    "message": data.get("message", ""),
+                }
+            return {"success": False, "error": result.get("error", "LLM call failed")}
+        except Exception as e:
+            logger.error(f"LLM step error: {e}")
+            return {"success": False, "error": str(e)}
     
     def _execute_verify_step(self, step: TaskStep, previous_results: List[Dict]) -> Dict:
         """Execute a verification step"""
