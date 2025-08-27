@@ -11,6 +11,7 @@ from datetime import datetime
 from loguru import logger
 
 from .policy import PolicyEngine, PolicyValidationResult
+from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt
 
 
 @dataclass
@@ -325,10 +326,33 @@ class ToolRouter:
         }
     
     def _llm_call_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default llm.call handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "llm.call handler not implemented - tool call validated but not executed",
-            "prompt": args.get("prompt", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        """LLM call handler with model routing between fast and deep providers"""
+        prompt = args.get("prompt", "")
+        mode = args.get("mode") or choose_model_mode_from_prompt(prompt)
+        model = args.get("model")  # optional explicit model override
+
+        # Route by mode unless explicit model provided
+        if model:
+            # If user forces a model via OpenRouter
+            result = call_openrouter_deepseek(prompt, model=model)
+        elif mode == "deep":
+            result = call_openrouter_deepseek(prompt)
+        else:
+            result = call_gemini_flash(prompt)
+
+        if result.get("success"):
+            return {
+                "status": "ok",
+                "message": "llm.call completed",
+                "mode": mode,
+                "model": result.get("model"),
+                "text": result.get("text", ""),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        else:
+            return {
+                "status": "error",
+                "message": result.get("error", "Unknown LLM error"),
+                "mode": mode,
+                "timestamp": datetime.utcnow().isoformat(),
+            }

@@ -371,16 +371,29 @@ class Orchestrator:
         }
     
     def _execute_llm_step(self, step: TaskStep) -> Dict:
-        """Execute an LLM call step"""
-        # For now, return a placeholder
-        # In production, this would use the actual LLM provider
-        return {
-            "success": True,
-            "type": "llm_call",
-            "prompt": step.action.get("args", {}).get("prompt", ""),
-            "response": "LLM call placeholder - not implemented yet",
-            "message": "LLM call placeholder - not implemented yet"
-        }
+        """Execute an LLM call step via tool router to leverage policy and providers"""
+        try:
+            args = step.action.get("args", {})
+            result = self.tool_router.route_tool_call({
+                "tool": "llm.call",
+                "args": args,
+                "reason": step.description,
+            })
+            if result.get("success"):
+                data = result.get("data", {})
+                return {
+                    "success": True,
+                    "type": "llm_call",
+                    "prompt": args.get("prompt", ""),
+                    "response": data.get("text", ""),
+                    "model": data.get("model"),
+                    "mode": data.get("mode"),
+                    "message": data.get("message", ""),
+                }
+            return {"success": False, "error": result.get("error", "LLM call failed")}
+        except Exception as e:
+            logger.error(f"LLM step error: {e}")
+            return {"success": False, "error": str(e)}
     
     def _execute_verify_step(self, step: TaskStep, previous_results: List[Dict]) -> Dict:
         """Execute a verification step"""

@@ -379,25 +379,19 @@ def demo(ctx):
 @cli.command()
 @click.pass_context
 def chat(ctx):
-    """Interactive chat to talk to the agent and control tasks"""
+    """Interactive natural language chat with smart action confirmations"""
     orchestrator = ctx.obj['orchestrator']
 
-    console.print(Panel.fit(
-        "[bold blue]Consiglio Chat[/bold blue]\n"
-        "Type your message to create a task from it.\n"
-        "Use slash commands to control tasks:\n"
-        "- /task <goal>\n"
-        "- /exec <task_id>\n"
-        "- /tasks\n"
-        "- /approve\n"
-        "- /status\n"
-        "- /profile <name>\n"
-        "- /audit\n"
-        "- /help\n"
-        "- /quit",
-        title="Interactive Mode",
-        border_style="magenta"
-    ))
+    winky = """
+ __        __        _         _         _        _        
+ \ \      / /__  ___| | ____ _| |_ _   _| | __ _| |_ ___  
+  \ \ /\ / / _ \/ __| |/ / _` | __| | | | |/ _` | __/ _ \ 
+   \ V  V /  __/ (__|   < (_| | |_| |_| | | (_| | || (_) |
+    \_/\_/ \___|\___|_|\_\__,_|\__|\__,_|_|\__,_|\__\___/ 
+                         [bold cyan]Winky AI Agent[/bold cyan]
+    """
+    console.print(Panel.fit(winky, title="Welcome", border_style="magenta"))
+    console.print(Text("Type what you want. I'll detect if it's a command, web search, or a question.\nI'll ask before running any command or external action.", style="bright_black"))
 
     while True:
         try:
@@ -409,86 +403,53 @@ def chat(ctx):
         if not user_input:
             continue
 
-        if user_input.startswith('/'):
-            parts = user_input.strip().split(maxsplit=1)
-            cmd = parts[0].lower()
-            arg = parts[1] if len(parts) > 1 else ""
+        text = user_input.strip()
+        lower = text.lower()
+        is_shell = lower.startswith("run ") or lower.startswith("execute ") or lower.startswith("! ") or lower.startswith("bash ") or lower.startswith("sh ") or lower.startswith("sudo ") or lower.startswith("apt ") or lower.startswith("pip ") or lower.startswith("git ")
+        is_search = any(k in lower for k in ["search ", "google ", "look up", "find info", "web search"]) and not is_shell
 
-            if cmd == '/quit' or cmd == '/exit':
-                console.print("[yellow]Goodbye![/yellow]")
-                break
-
-            if cmd == '/help':
-                console.print("""
-Commands:
-/task <goal>        Create a task
-/exec <task_id>     Execute a task
-/tasks              List tasks
-/approve            Review and approve pending tool calls
-/status             Show system status
-/profile <name>     Set security profile
-/audit              Show recent audit log
-/help               Show this help
-/quit               Exit chat
-""")
+        if is_shell:
+            cmd = text.lstrip("! ")
+            if not Confirm.ask(f"Run shell command?\n[bold]{cmd}[/bold]", default=False):
+                console.print("[bright_black]Cancelled.[/bright_black]")
                 continue
-
-            if cmd == '/status':
-                ctx.invoke(status)
-                continue
-
-            if cmd == '/tasks':
-                ctx.invoke(tasks)
-                continue
-
-            if cmd == '/audit':
-                ctx.invoke(audit)
-                continue
-
-            if cmd == '/approve':
-                ctx.invoke(approve)
-                continue
-
-            if cmd == '/profile':
-                if not arg:
-                    console.print("[red]Usage: /profile <name>[/red]")
+            result = orchestrator.tool_router.route_tool_call({
+                "tool": "shell.exec",
+                "args": {"command": cmd},
+                "reason": "User requested shell execution from chat",
+            })
+            if result.get("requires_confirmation"):
+                if Confirm.ask("Approve this tool call now?", default=False):
+                    approve_result = orchestrator.tool_router.approve_tool_call(result.get("tool_call_id"))
+                    console.print(approve_result)
                 else:
-                    ctx.invoke(profile, profile_name=arg)
-                continue
-
-            if cmd == '/task':
-                if not arg:
-                    console.print("[red]Usage: /task <goal>[/red]")
-                    continue
-                goal = arg
-                with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-                    p = progress.add_task("Creating task...", total=None)
-                    task_id = orchestrator.create_task(goal)
-                    progress.update(p, completed=True)
-                console.print(f"[green]Task created:[/green] {task_id}")
-                if Confirm.ask("Execute now?", default=False):
-                    ctx.invoke(execute, task_id=task_id)
-                continue
-
-            if cmd == '/exec':
-                if not arg:
-                    console.print("[red]Usage: /exec <task_id>[/red]")
-                    continue
-                ctx.invoke(execute, task_id=arg)
-                continue
-
-            console.print(f"[red]Unknown command:[/red] {cmd}. Type /help")
+                    console.print("[yellow]Pending approval. Use 'approve' command later.[/yellow]")
+            else:
+                console.print(result.get("data", {}))
             continue
 
-        # Natural language: create a task from the message
-        goal = user_input.strip()
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), console=console) as progress:
-            p = progress.add_task("Creating task from message...", total=None)
-            task_id = orchestrator.create_task(goal)
-            progress.update(p, completed=True)
-        console.print(f"[green]Created task[/green] {task_id} for: [blue]{goal}[/blue]")
-        if Confirm.ask("Execute now?", default=True):
-            ctx.invoke(execute, task_id=task_id)
+        if is_search:
+            if not Confirm.ask("Perform a web action/search?", default=True):
+                console.print("[bright_black]Skipped web action.[/bright_black]")
+            else:
+                result = orchestrator.tool_router.route_tool_call({
+                    "tool": "web.get",
+                    "args": {"url": "https://example.com"},
+                    "reason": f"Search intent from: {text[:80]}",
+                })
+                console.print(result)
+            continue
+
+        result = orchestrator.tool_router.route_tool_call({
+            "tool": "llm.call",
+            "args": {"prompt": text},
+            "reason": "Chat response",
+        })
+        if result.get("success"):
+            data = result.get("data", {})
+            console.print(Panel.fit(data.get("text", ""), title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
+        else:
+            console.print(f"[red]{result.get('error')}[/red]")
 
 
 if __name__ == '__main__':
