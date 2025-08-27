@@ -12,6 +12,8 @@ from loguru import logger
 
 from .policy import PolicyEngine, PolicyValidationResult
 from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt
+from .browser import BrowserController
+from .rag import SimpleRAG
 
 
 @dataclass
@@ -50,6 +52,8 @@ class ToolRouter:
         
         # Register default tool handlers
         self._register_default_handlers()
+        self._browser: BrowserController | None = None
+        self._rag = SimpleRAG()
     
     def _register_default_handlers(self):
         """Register default tool handlers (safe no-ops for now)"""
@@ -60,6 +64,9 @@ class ToolRouter:
         self.register_tool("browser.control", self._browser_control_handler)
         self.register_tool("rag.search", self._rag_search_handler)
         self.register_tool("llm.call", self._llm_call_handler)
+        self.register_tool("file.copy", self._file_copy_handler)
+        self.register_tool("file.move", self._file_move_handler)
+        self.register_tool("file.download", self._file_download_handler)
     
     def register_tool(self, tool_name: str, handler: Callable) -> None:
         """Register a tool handler"""
@@ -272,58 +279,86 @@ class ToolRouter:
     
     # Default tool handlers (safe no-ops)
     def _web_get_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default web.get handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "web.get handler not implemented - tool call validated but not executed",
-            "requested_url": args.get("url", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        import httpx
+        url = args.get("url")
+        if not url:
+            return {"status": "error", "error": "Missing url"}
+        max_bytes = int(self.policy_engine.policy_data.get("tools", {}).get("web.get", {}).get("max_bytes", 2000000))
+        try:
+            with httpx.stream("GET", url, timeout=30, follow_redirects=True) as r:
+                r.raise_for_status()
+                total = 0
+                chunks = []
+                for chunk in r.iter_bytes():
+                    total += len(chunk)
+                    if total > max_bytes:
+                        return {"status": "error", "error": "Response too large"}
+                    chunks.append(chunk)
+            content = b"".join(chunks)
+            text = content.decode("utf-8", errors="ignore")
+            return {"status": "ok", "url": url, "content": text, "bytes": len(content)}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
     def _file_read_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default file.read handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "file.read handler not implemented - tool call validated but not executed",
-            "requested_path": args.get("path", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        path = args.get("path")
+        if not path:
+            return {"status": "error", "error": "Missing path"}
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                content = f.read()
+            return {"status": "ok", "path": path, "content": content}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
     def _file_write_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default file.write handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "file.write handler not implemented - tool call validated but not executed",
-            "requested_path": args.get("path", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        path = args.get("path")
+        content = args.get("content", "")
+        if not path:
+            return {"status": "error", "error": "Missing path"}
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            return {"status": "ok", "path": path, "bytes": len(content.encode("utf-8"))}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
     def _shell_exec_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default shell.exec handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "shell.exec handler not implemented - tool call validated but not executed",
-            "requested_command": args.get("command", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        import subprocess
+        cmd = args.get("command", "").strip()
+        if not cmd:
+            return {"status": "error", "error": "Missing command"}
+        base = cmd.split()[0]
+        allowlist = {"ls", "cat", "head", "tail", "grep", "find", "echo", "pwd"}
+        if base not in allowlist:
+            return {"status": "error", "error": f"Command not allowed: {base}"}
+        try:
+            completed = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+            return {"status": "ok", "returncode": completed.returncode, "stdout": completed.stdout[:200000], "stderr": completed.stderr[:200000]}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
     
     def _browser_control_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default browser.control handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "browser.control handler not implemented - tool call validated but not executed",
-            "requested_action": args.get("action", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        if self._browser is None:
+            headless = args.get("headless", True)
+            self._browser = BrowserController(headless=headless)
+        action = args.get("action")
+        if isinstance(action, dict):
+            return self._browser.run_action(action)
+        elif isinstance(action, list):
+            outputs = []
+            for step in action:
+                outputs.append(self._browser.run_action(step))
+            return {"status": "ok", "results": outputs}
+        return {"status": "error", "error": "Invalid action format"}
     
     def _rag_search_handler(self, args: Dict, user_context: Dict) -> Dict:
-        """Default rag.search handler (no-op for safety)"""
-        return {
-            "status": "noop",
-            "message": "rag.search handler not implemented - tool call validated but not executed",
-            "query": args.get("query", "unknown"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        query = args.get("query", "")
+        corpus = args.get("corpus", "default")
+        if corpus not in self._rag.corpora:
+            self._rag.add_documents(corpus, ["Winky AI agent: a terminal agent with browser and file tools."])
+        return self._rag.search(corpus, query, k=int(args.get("k", 5)))
     
     def _llm_call_handler(self, args: Dict, user_context: Dict) -> Dict:
         """LLM call handler with model routing between fast and deep providers"""
