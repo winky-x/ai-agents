@@ -20,6 +20,16 @@ profiles:
       - file.read:
           paths: ["./work", "./data", "./docs"]
           require_manual_confirmation: false
+      - browser.control:
+          require_manual_confirmation: true
+          headless_only: true
+          max_pages_per_session: 5
+      - file.download:
+          require_manual_confirmation: true
+      - file.copy:
+          require_manual_confirmation: true
+      - file.move:
+          require_manual_confirmation: true
       - rag.search:
           require_manual_confirmation: false
       - llm.call:
@@ -27,7 +37,6 @@ profiles:
     deny:
       - shell.exec
       - file.write
-      - browser.control
       - system.control
       - email.send
 
@@ -42,6 +51,9 @@ profiles:
       - file.read:
           paths: ["./work", "./data", "./docs", "./research"]
           require_manual_confirmation: false
+      - browser.control:
+          require_manual_confirmation: true
+          headless_only: true
       - rag.search:
           require_manual_confirmation: false
       - llm.call:
@@ -51,7 +63,6 @@ profiles:
           require_manual_confirmation: true
     deny:
       - shell.exec
-      - browser.control
       - system.control
       - email.send
 
