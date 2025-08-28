@@ -19,6 +19,10 @@ from .desktop_automation import DesktopAutomation
 from .intelligence_engine import IntelligenceEngine
 from .real_world_apis import RealWorldAPIs
 from .vision_understanding import VisionUnderstanding
+from .context_understanding import ContextUnderstanding
+from .adaptive_learning import AdaptiveLearning
+from .real_world_integrations import RealWorldIntegrations
+from .error_recovery import ErrorRecovery
 
 
 @dataclass
@@ -67,6 +71,13 @@ class Orchestrator:
         self.desktop_automation = DesktopAutomation()
         self.real_world_apis = RealWorldAPIs()
         self.vision_understanding = VisionUnderstanding(self.tool_router)
+        self.context_understanding = ContextUnderstanding(
+            llm_provider=self.tool_router,
+            memory_system=self.persistent_memory
+        )
+        self.adaptive_learning = AdaptiveLearning(self.persistent_memory)
+        self.real_world_integrations = RealWorldIntegrations()
+        self.error_recovery = ErrorRecovery(self.persistent_memory)
         self.intelligence_engine = IntelligenceEngine(
             llm_provider=self.tool_router,
             memory_system=self.persistent_memory,

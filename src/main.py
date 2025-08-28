@@ -440,8 +440,40 @@ def chat(ctx):
                 console.print(result)
             continue
 
-        # Use intelligent problem-solving instead of simple LLM call
-        intelligent_result = orchestrator.intelligence_engine.get_intelligent_response(text, user_context={})
+        # Get conversation history for context
+        conversation_history = []
+        memories = orchestrator.persistent_memory.get_memories("conversation", limit=10)
+        for memory in memories:
+            conversation_history.append({
+                "user_input": memory.content.get("user_input", ""),
+                "agent_response": memory.content.get("agent_response", "")
+            })
+        
+        # Understand the request with full context
+        understanding = orchestrator.context_understanding.understand_request(text, conversation_history)
+        
+        if understanding.get("understanding") == "incomplete":
+            # Need clarification
+            questions = understanding.get("questions", [])
+            response_text = "I need some clarification:\n" + "\n".join([f"• {q}" for q in questions])
+            console.print(Panel.fit(response_text, title="🤔 Clarification Needed", border_style="yellow"))
+            continue
+        
+        # Get best approach based on learning
+        task_type = understanding.get("intent", {}).type.value
+        input_data = understanding.get("intent", {}).entities or {}
+        best_approach, confidence = orchestrator.adaptive_learning.get_best_approach(task_type, input_data)
+        
+        # Check if we should avoid this approach
+        if orchestrator.adaptive_learning.should_avoid_approach(task_type, input_data):
+            best_approach = "alternative_approach"
+            confidence = 0.3
+        
+        # Use intelligent problem-solving with learned approach
+        intelligent_result = orchestrator.intelligence_engine.get_intelligent_response(
+            understanding.get("resolved_input", text), 
+            user_context={"approach": best_approach, "confidence": confidence}
+        )
         
         if intelligent_result.get("intelligence_used"):
             analysis = intelligent_result.get("analysis", {})
@@ -478,8 +510,30 @@ def chat(ctx):
                 
                 response_text = "\n".join(response_parts)
                 
-                # Store in memory
+                # Store in memory and record learning
                 orchestrator.persistent_memory.learn_from_interaction(text, response_text)
+                
+                # Record learning event
+                orchestrator.adaptive_learning.record_learning_event(
+                    task_type=task_type,
+                    input_data=input_data,
+                    approach_used=best_approach,
+                    result=execution_result,
+                    performance_metrics={
+                        "execution_time": execution_result.get("total_time", 0),
+                        "success_rate": 1.0 if execution_result.get("success") else 0.0,
+                        "user_satisfaction": 1.0  # Assume satisfaction if no error
+                    },
+                    context={"user_input": text, "response": response_text}
+                )
+                
+                # Update context
+                orchestrator.context_understanding.update_context(
+                    level=orchestrator.context_understanding.ContextLevel.SESSION,
+                    key="last_task",
+                    value={"type": task_type, "result": "success"},
+                    ttl_hours=2
+                )
                 
                 console.print(Panel.fit(response_text, title="🤖 Intelligent Agent", border_style="green"))
             else:
@@ -496,7 +550,24 @@ def chat(ctx):
             if result.get("success"):
                 data = result.get("data", {})
                 response_text = data.get("text", "")
+                
+                # Store in memory and record learning
                 orchestrator.persistent_memory.learn_from_interaction(text, response_text)
+                
+                # Record learning event for fallback
+                orchestrator.adaptive_learning.record_learning_event(
+                    task_type="fallback_llm",
+                    input_data={"original_input": text},
+                    approach_used="simple_llm_call",
+                    result={"success": True, "method": "fallback"},
+                    performance_metrics={
+                        "execution_time": 0,
+                        "success_rate": 1.0,
+                        "user_satisfaction": 0.5  # Lower satisfaction for fallback
+                    },
+                    context={"user_input": text, "response": response_text}
+                )
+                
                 console.print(Panel.fit(response_text, title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
             else:
                 console.print(f"[red]{result.get('error')}[/red]")
