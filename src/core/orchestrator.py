@@ -16,6 +16,9 @@ from .tool_router import ToolRouter, ToolCall
 from .memory import PersistentMemory
 from .background_tasks import BackgroundTaskManager
 from .desktop_automation import DesktopAutomation
+from .intelligence_engine import IntelligenceEngine
+from .real_world_apis import RealWorldAPIs
+from .vision_understanding import VisionUnderstanding
 
 
 @dataclass
@@ -62,6 +65,13 @@ class Orchestrator:
         self.persistent_memory = PersistentMemory()
         self.background_manager = BackgroundTaskManager()
         self.desktop_automation = DesktopAutomation()
+        self.real_world_apis = RealWorldAPIs()
+        self.vision_understanding = VisionUnderstanding(self.tool_router)
+        self.intelligence_engine = IntelligenceEngine(
+            llm_provider=self.tool_router,
+            memory_system=self.persistent_memory,
+            tool_router=self.tool_router
+        )
         
         # Start background task manager
         self.background_manager.start()

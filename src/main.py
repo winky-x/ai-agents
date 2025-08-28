@@ -440,35 +440,66 @@ def chat(ctx):
                 console.print(result)
             continue
 
-        # Get conversation context and user preferences
-        context = orchestrator.persistent_memory.get_conversation_context(limit=5)
-        preferences = orchestrator.persistent_memory.get_user_preferences()
+        # Use intelligent problem-solving instead of simple LLM call
+        intelligent_result = orchestrator.intelligence_engine.get_intelligent_response(text, user_context={})
         
-        # Build enhanced prompt with context
-        enhanced_prompt = text
-        if context:
-            enhanced_prompt = f"Context from recent conversation:\n{context}\n\nCurrent request: {text}"
-        
-        if preferences:
-            pref_text = ", ".join([f"{k}: {v}" for k, v in preferences.items()])
-            enhanced_prompt += f"\n\nUser preferences: {pref_text}"
-        
-        result = orchestrator.tool_router.route_tool_call({
-            "tool": "llm.call",
-            "args": {"prompt": enhanced_prompt},
-            "reason": "Chat response",
-        })
-        
-        if result.get("success"):
-            data = result.get("data", {})
-            response_text = data.get("text", "")
+        if intelligent_result.get("intelligence_used"):
+            analysis = intelligent_result.get("analysis", {})
+            execution_result = intelligent_result.get("execution_result", {})
             
-            # Store in memory
-            orchestrator.persistent_memory.learn_from_interaction(text, response_text)
-            
-            console.print(Panel.fit(response_text, title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
+            if execution_result.get("success"):
+                # Format the response
+                response_parts = []
+                
+                # Add analysis summary
+                if analysis:
+                    complexity = analysis.get("complexity", "unknown")
+                    intent = analysis.get("intent", "general")
+                    response_parts.append(f"[bold]Analysis:[/bold] {intent} ({complexity} complexity)")
+                
+                # Add execution summary
+                solution = intelligent_result.get("solution")
+                if solution:
+                    steps_completed = len(solution.steps)
+                    response_parts.append(f"[bold]Solution:[/bold] Completed {steps_completed} steps")
+                
+                # Add results
+                results = execution_result.get("results", [])
+                if results:
+                    response_parts.append(f"[bold]Results:[/bold]")
+                    for i, step_result in enumerate(results[:3], 1):  # Show first 3 results
+                        step_id = step_result.get("step_id", f"step_{i}")
+                        success = "✅" if step_result.get("success") else "❌"
+                        response_parts.append(f"  {success} {step_id}")
+                
+                # Add final response
+                if results and results[-1].get("result", {}).get("text"):
+                    response_parts.append(f"\n{results[-1]['result']['text']}")
+                
+                response_text = "\n".join(response_parts)
+                
+                # Store in memory
+                orchestrator.persistent_memory.learn_from_interaction(text, response_text)
+                
+                console.print(Panel.fit(response_text, title="🤖 Intelligent Agent", border_style="green"))
+            else:
+                error_msg = execution_result.get("error", "Unknown error")
+                console.print(f"[red]Intelligent processing failed: {error_msg}[/red]")
         else:
-            console.print(f"[red]{result.get('error')}[/red]")
+            # Fallback to simple LLM call
+            result = orchestrator.tool_router.route_tool_call({
+                "tool": "llm.call",
+                "args": {"prompt": text},
+                "reason": "Fallback chat response",
+            })
+            
+            if result.get("success"):
+                data = result.get("data", {})
+                response_text = data.get("text", "")
+                orchestrator.persistent_memory.learn_from_interaction(text, response_text)
+                console.print(Panel.fit(response_text, title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
+            else:
+                console.print(f"[red]{result.get('error')}[/red]")
 
 
 if __name__ == '__main__':

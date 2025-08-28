@@ -56,6 +56,8 @@ class ToolRouter:
         self._browser: BrowserController | None = None
         self._rag = SimpleRAG()
         self._desktop: DesktopAutomation | None = None
+        self._real_world_apis = None
+        self._vision_understanding = None
     
     def _register_default_handlers(self):
         """Register default tool handlers (safe no-ops for now)"""
@@ -73,6 +75,15 @@ class ToolRouter:
         self.register_tool("desktop.click", self._desktop_click_handler)
         self.register_tool("desktop.type", self._desktop_type_handler)
         self.register_tool("desktop.screenshot", self._desktop_screenshot_handler)
+        self.register_tool("api.send_email", self._api_send_email_handler)
+        self.register_tool("api.create_calendar_event", self._api_create_calendar_handler)
+        self.register_tool("api.process_payment", self._api_payment_handler)
+        self.register_tool("api.search_products", self._api_product_search_handler)
+        self.register_tool("api.order_food", self._api_food_order_handler)
+        self.register_tool("api.get_weather", self._api_weather_handler)
+        self.register_tool("api.get_directions", self._api_directions_handler)
+        self.register_tool("vision.analyze_screen", self._vision_analyze_handler)
+        self.register_tool("vision.get_guidance", self._vision_guidance_handler)
     
     def register_tool(self, tool_name: str, handler: Callable) -> None:
         """Register a tool handler"""
@@ -323,6 +334,7 @@ class ToolRouter:
         if not path:
             return {"status": "error", "error": "Missing path"}
         try:
+            import os
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
@@ -373,6 +385,7 @@ class ToolRouter:
         if not src or not dst:
             return {"status": "error", "error": "Missing src/dst"}
         try:
+            import os
             os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
             shutil.copy2(src, dst)
             return {"status": "ok", "src": src, "dst": dst}
@@ -386,6 +399,7 @@ class ToolRouter:
         if not src or not dst:
             return {"status": "error", "error": "Missing src/dst"}
         try:
+            import os
             os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
             shutil.move(src, dst)
             return {"status": "ok", "src": src, "dst": dst}
@@ -400,6 +414,7 @@ class ToolRouter:
         if not url or not path:
             return {"status": "error", "error": "Missing url/path"}
         try:
+            import os
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
             with httpx.stream("GET", url, timeout=60) as r:
                 r.raise_for_status()
@@ -474,9 +489,167 @@ class ToolRouter:
         
         return self._desktop.type_text(text, delay=args.get("delay", 0.1))
 
-    def _desktop_screenshot_handler(self, args: Dict, user_context: Dict) -> Dict:
+    def _desktop_screenshot_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
         """Take desktop screenshot"""
         if self._desktop is None:
             self._desktop = DesktopAutomation()
         
         return self._desktop.take_screenshot(**args)
+
+    # API Handlers
+    def _api_send_email_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Send email via API"""
+        from .real_world_apis import EmailMessage
+        import asyncio
+        
+        message = EmailMessage(
+            to=args.get("to"),
+            subject=args.get("subject"),
+            body=args.get("body")
+        )
+        
+        # Run async function
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.send_email(message))
+            return result
+        finally:
+            loop.close()
+
+    def _api_create_calendar_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Create calendar event via API"""
+        from .real_world_apis import CalendarEvent
+        from datetime import datetime
+        import asyncio
+        
+        event = CalendarEvent(
+            title=args.get("title"),
+            start_time=datetime.fromisoformat(args.get("start_time")),
+            end_time=datetime.fromisoformat(args.get("end_time")),
+            location=args.get("location"),
+            description=args.get("description")
+        )
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.create_calendar_event(event))
+            return result
+        finally:
+            loop.close()
+
+    def _api_payment_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Process payment via API"""
+        from .real_world_apis import PaymentRequest
+        import asyncio
+        
+        payment = PaymentRequest(
+            amount=float(args.get("amount")),
+            currency=args.get("currency", "USD"),
+            description=args.get("description")
+        )
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.process_payment(payment))
+            return result
+        finally:
+            loop.close()
+
+    def _api_product_search_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Search products via API"""
+        import asyncio
+        
+        query = args.get("query")
+        service = args.get("service", "amazon")
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.search_products(query, service))
+            return result
+        finally:
+            loop.close()
+
+    def _api_food_order_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Order food via API"""
+        import asyncio
+        
+        restaurant = args.get("restaurant")
+        items = args.get("items", [])
+        service = args.get("service", "uber_eats")
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.order_food(restaurant, items, service))
+            return result
+        finally:
+            loop.close()
+
+    def _api_weather_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Get weather via API"""
+        import asyncio
+        
+        location = args.get("location")
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.get_weather(location))
+            return result
+        finally:
+            loop.close()
+
+    def _api_directions_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Get directions via API"""
+        import asyncio
+        
+        origin = args.get("origin")
+        destination = args.get("destination")
+        
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            result = loop.run_until_complete(self._real_world_apis.get_directions(origin, destination))
+            return result
+        finally:
+            loop.close()
+
+    # Vision Handlers
+    def _vision_analyze_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Analyze screen using vision"""
+        image_path = args.get("image_path")
+        if not image_path:
+            return {"success": False, "error": "Missing image_path"}
+        
+        try:
+            analysis = self._vision_understanding.analyze_screen(image_path)
+            return {
+                "success": True,
+                "analysis": {
+                    "elements": len(analysis.elements),
+                    "interactive_elements": len(analysis.interactive_elements),
+                    "layout_type": analysis.layout.get("layout_type"),
+                    "text_content": analysis.text_content[:200] + "..." if len(analysis.text_content) > 200 else analysis.text_content,
+                    "suggested_actions": analysis.suggested_actions
+                }
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def _vision_guidance_handler(self, args: Dict, user_context: Dict) -> Dict[str, Any]:
+        """Get visual guidance for a task"""
+        task_description = args.get("task_description")
+        image_path = args.get("image_path")
+        
+        if not task_description or not image_path:
+            return {"success": False, "error": "Missing task_description or image_path"}
+        
+        try:
+            guidance = self._vision_understanding.get_visual_guidance(task_description, image_path)
+            return guidance
+        except Exception as e:
+            return {"success": False, "error": str(e)}

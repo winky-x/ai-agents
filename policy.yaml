@@ -38,6 +38,14 @@ profiles:
           require_manual_confirmation: true
       - desktop.screenshot:
           require_manual_confirmation: false
+      - api.get_weather:
+          require_manual_confirmation: false
+      - api.get_directions:
+          require_manual_confirmation: false
+      - vision.analyze_screen:
+          require_manual_confirmation: false
+      - vision.get_guidance:
+          require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
       - llm.call:
@@ -69,6 +77,16 @@ profiles:
       - desktop.type:
           require_manual_confirmation: true
       - desktop.screenshot:
+          require_manual_confirmation: false
+      - api.search_products:
+          require_manual_confirmation: false
+      - api.get_weather:
+          require_manual_confirmation: false
+      - api.get_directions:
+          require_manual_confirmation: false
+      - vision.analyze_screen:
+          require_manual_confirmation: false
+      - vision.get_guidance:
           require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
@@ -112,6 +130,24 @@ profiles:
       - desktop.type:
           require_manual_confirmation: true
       - desktop.screenshot:
+          require_manual_confirmation: false
+      - api.send_email:
+          require_manual_confirmation: true
+      - api.create_calendar_event:
+          require_manual_confirmation: true
+      - api.process_payment:
+          require_manual_confirmation: true
+      - api.search_products:
+          require_manual_confirmation: false
+      - api.order_food:
+          require_manual_confirmation: true
+      - api.get_weather:
+          require_manual_confirmation: false
+      - api.get_directions:
+          require_manual_confirmation: false
+      - vision.analyze_screen:
+          require_manual_confirmation: false
+      - vision.get_guidance:
           require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
