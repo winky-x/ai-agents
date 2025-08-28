@@ -360,6 +360,50 @@ class ToolRouter:
             self._rag.add_documents(corpus, ["Winky AI agent: a terminal agent with browser and file tools."])
         return self._rag.search(corpus, query, k=int(args.get("k", 5)))
     
+    def _file_copy_handler(self, args: Dict, user_context: Dict) -> Dict:
+        import shutil
+        src = args.get("src")
+        dst = args.get("dst")
+        if not src or not dst:
+            return {"status": "error", "error": "Missing src/dst"}
+        try:
+            os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+            shutil.copy2(src, dst)
+            return {"status": "ok", "src": src, "dst": dst}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    def _file_move_handler(self, args: Dict, user_context: Dict) -> Dict:
+        import shutil
+        src = args.get("src")
+        dst = args.get("dst")
+        if not src or not dst:
+            return {"status": "error", "error": "Missing src/dst"}
+        try:
+            os.makedirs(os.path.dirname(dst) or ".", exist_ok=True)
+            shutil.move(src, dst)
+            return {"status": "ok", "src": src, "dst": dst}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    def _file_download_handler(self, args: Dict, user_context: Dict) -> Dict:
+        # Simple HTTP download
+        import httpx
+        url = args.get("url")
+        path = args.get("path")
+        if not url or not path:
+            return {"status": "error", "error": "Missing url/path"}
+        try:
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            with httpx.stream("GET", url, timeout=60) as r:
+                r.raise_for_status()
+                with open(path, "wb") as f:
+                    for chunk in r.iter_bytes():
+                        f.write(chunk)
+            return {"status": "ok", "url": url, "path": path}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
     def _llm_call_handler(self, args: Dict, user_context: Dict) -> Dict:
         """LLM call handler with model routing between fast and deep providers"""
         prompt = args.get("prompt", "")

@@ -14,3 +14,7 @@
 2025-08-15 05:03:58 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
 2025-08-15 05:04:23 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
 2025-08-27 07:08:16 | INFO | core.orchestrator:__init__:63 | Consiglio Orchestrator initialized
+2025-08-28 04:35:19 | INFO | core.orchestrator:__init__:64 | Consiglio Orchestrator initialized
+2025-08-28 04:35:19 | INFO | core.orchestrator:create_task:152 | Created task task_20250828_043519_0: Search for information about AI agents and summarize the findings
+2025-08-28 04:35:49 | INFO | core.tool_router:_log_audit_event:278 | Audit: tool_call_executed for tool web.get (ID: 58531278-9d61-4e3d-9c03-92dbebede1d4)
+2025-08-28 04:35:49 | INFO | core.tool_router:_log_audit_event:278 | Audit: tool_call_executed for tool llm.call (ID: 97f0ab78-3512-403c-ac13-d10d8cf382d4)
