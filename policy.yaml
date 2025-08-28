@@ -30,6 +30,14 @@ profiles:
           require_manual_confirmation: true
       - file.move:
           require_manual_confirmation: true
+      - desktop.launch:
+          require_manual_confirmation: true
+      - desktop.click:
+          require_manual_confirmation: true
+      - desktop.type:
+          require_manual_confirmation: true
+      - desktop.screenshot:
+          require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
       - llm.call:
@@ -54,6 +62,14 @@ profiles:
       - browser.control:
           require_manual_confirmation: true
           headless_only: true
+      - desktop.launch:
+          require_manual_confirmation: true
+      - desktop.click:
+          require_manual_confirmation: true
+      - desktop.type:
+          require_manual_confirmation: true
+      - desktop.screenshot:
+          require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
       - llm.call:
@@ -89,6 +105,14 @@ profiles:
           require_manual_confirmation: true
           max_pages_per_session: 10
           headless_only: true
+      - desktop.launch:
+          require_manual_confirmation: true
+      - desktop.click:
+          require_manual_confirmation: true
+      - desktop.type:
+          require_manual_confirmation: true
+      - desktop.screenshot:
+          require_manual_confirmation: false
       - rag.search:
           require_manual_confirmation: false
       - llm.call:

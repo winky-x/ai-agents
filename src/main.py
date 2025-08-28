@@ -440,14 +440,33 @@ def chat(ctx):
                 console.print(result)
             continue
 
+        # Get conversation context and user preferences
+        context = orchestrator.persistent_memory.get_conversation_context(limit=5)
+        preferences = orchestrator.persistent_memory.get_user_preferences()
+        
+        # Build enhanced prompt with context
+        enhanced_prompt = text
+        if context:
+            enhanced_prompt = f"Context from recent conversation:\n{context}\n\nCurrent request: {text}"
+        
+        if preferences:
+            pref_text = ", ".join([f"{k}: {v}" for k, v in preferences.items()])
+            enhanced_prompt += f"\n\nUser preferences: {pref_text}"
+        
         result = orchestrator.tool_router.route_tool_call({
             "tool": "llm.call",
-            "args": {"prompt": text},
+            "args": {"prompt": enhanced_prompt},
             "reason": "Chat response",
         })
+        
         if result.get("success"):
             data = result.get("data", {})
-            console.print(Panel.fit(data.get("text", ""), title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
+            response_text = data.get("text", "")
+            
+            # Store in memory
+            orchestrator.persistent_memory.learn_from_interaction(text, response_text)
+            
+            console.print(Panel.fit(response_text, title=f"{data.get('model', 'LLM')} ({data.get('mode', 'fast')})", border_style="blue"))
         else:
             console.print(f"[red]{result.get('error')}[/red]")
 

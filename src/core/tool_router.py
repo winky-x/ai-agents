@@ -14,6 +14,7 @@ from .policy import PolicyEngine, PolicyValidationResult
 from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt, call_gemini_vision
 from .browser import BrowserController
 from .rag import SimpleRAG
+from .desktop_automation import DesktopAutomation
 
 
 @dataclass
@@ -54,6 +55,7 @@ class ToolRouter:
         self._register_default_handlers()
         self._browser: BrowserController | None = None
         self._rag = SimpleRAG()
+        self._desktop: DesktopAutomation | None = None
     
     def _register_default_handlers(self):
         """Register default tool handlers (safe no-ops for now)"""
@@ -67,6 +69,10 @@ class ToolRouter:
         self.register_tool("file.copy", self._file_copy_handler)
         self.register_tool("file.move", self._file_move_handler)
         self.register_tool("file.download", self._file_download_handler)
+        self.register_tool("desktop.launch", self._desktop_launch_handler)
+        self.register_tool("desktop.click", self._desktop_click_handler)
+        self.register_tool("desktop.type", self._desktop_type_handler)
+        self.register_tool("desktop.screenshot", self._desktop_screenshot_handler)
     
     def register_tool(self, tool_name: str, handler: Callable) -> None:
         """Register a tool handler"""
@@ -438,3 +444,39 @@ class ToolRouter:
                 "mode": mode,
                 "timestamp": datetime.utcnow().isoformat(),
             }
+
+    def _desktop_launch_handler(self, args: Dict, user_context: Dict) -> Dict:
+        """Launch desktop application"""
+        if self._desktop is None:
+            self._desktop = DesktopAutomation()
+        
+        app_name = args.get("app_name")
+        if not app_name:
+            return {"status": "error", "error": "Missing app_name"}
+        
+        return self._desktop.launch_app(app_name)
+
+    def _desktop_click_handler(self, args: Dict, user_context: Dict) -> Dict:
+        """Click on desktop element"""
+        if self._desktop is None:
+            self._desktop = DesktopAutomation()
+        
+        return self._desktop.click_element(**args)
+
+    def _desktop_type_handler(self, args: Dict, user_context: Dict) -> Dict:
+        """Type text on desktop"""
+        if self._desktop is None:
+            self._desktop = DesktopAutomation()
+        
+        text = args.get("text")
+        if not text:
+            return {"status": "error", "error": "Missing text"}
+        
+        return self._desktop.type_text(text, delay=args.get("delay", 0.1))
+
+    def _desktop_screenshot_handler(self, args: Dict, user_context: Dict) -> Dict:
+        """Take desktop screenshot"""
+        if self._desktop is None:
+            self._desktop = DesktopAutomation()
+        
+        return self._desktop.take_screenshot(**args)

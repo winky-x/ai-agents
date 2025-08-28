@@ -13,6 +13,9 @@ from loguru import logger
 
 from .policy import PolicyEngine
 from .tool_router import ToolRouter, ToolCall
+from .memory import PersistentMemory
+from .background_tasks import BackgroundTaskManager
+from .desktop_automation import DesktopAutomation
 
 
 @dataclass
@@ -54,6 +57,14 @@ class Orchestrator:
         self.active_tasks: Dict[str, Task] = {}
         self.task_queue: List[str] = []
         self.memory: List[Dict[str, Any]] = []
+        
+        # Initialize new systems
+        self.persistent_memory = PersistentMemory()
+        self.background_manager = BackgroundTaskManager()
+        self.desktop_automation = DesktopAutomation()
+        
+        # Start background task manager
+        self.background_manager.start()
         
         # Initialize logging
         self._setup_logging()
@@ -372,9 +383,20 @@ class Orchestrator:
                     step.result = verify_result
                     step.status = "completed"
                 
-                # Add to memory
-                self.memory.append({"task": task.id, "step": step.id, "type": step.type, "status": step.status, "desc": step.description})
-                results.append(asdict(step))
+                        # Add to memory
+        self.memory.append({"task": task.id, "step": step.id, "type": step.type, "status": step.status, "desc": step.description})
+        
+        # Store in persistent memory
+        self.persistent_memory.add_memory("task_step", {
+            "task_id": task.id,
+            "step_id": step.id,
+            "type": step.type,
+            "status": step.status,
+            "description": step.description,
+            "result": step.result
+        })
+        
+        results.append(asdict(step))
             
             return {"success": True, "results": results}
             
