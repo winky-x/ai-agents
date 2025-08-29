@@ -16,6 +16,7 @@ import json
 import time
 from dataclasses import dataclass
 from loguru import logger
+from .llm_providers import call_ui_tars_vision, call_openrouter_generic
 
 
 @dataclass
@@ -481,49 +482,35 @@ class VisionUnderstanding:
         )
     
     def get_visual_guidance(self, task_description: str, image_path: str) -> Dict[str, Any]:
-        """Get visual guidance for a specific task"""
+        """Get visual guidance for a specific task with LLM-first (UI-TARS) strategy and fallbacks."""
         try:
-            # Analyze the screen
+            # 1) Try UI-TARS (agentic GUI expert)
+            prompt = (
+                f"You are a multimodal GUI assistant for desktops/browsers. Task: {task_description}. "
+                "Given the screenshot, provide concise, step-by-step actions (1-5), mention key UI elements, "
+                "explain likely errors if visible, and suggest the next best click or input."
+            )
+            ui_tars = call_ui_tars_vision(prompt, [image_path])
+            if ui_tars.get("success") and ui_tars.get("text"):
+                return {"success": True, "guidance": ui_tars.get("text", ""), "model": "bytedance/ui-tars-1.5-7b"}
+
+            # 2) Fallback to Gemini 2.0 flash exp via OpenRouter
+            gem_fallback = call_openrouter_generic(prompt, model="google/gemini-2.0-flash-exp:free", image_paths=[image_path])
+            if gem_fallback.get("success") and gem_fallback.get("text"):
+                return {"success": True, "guidance": gem_fallback.get("text", ""), "model": "google/gemini-2.0-flash-exp:free"}
+
+            # 3) Final fallback: run local CV analysis and produce heuristic guidance
             analysis = self.analyze_screen(image_path)
-            
-            # Create guidance prompt
-            guidance_prompt = f"""
-            Task: {task_description}
-            
-            Screen Analysis:
-            - Visual Context: {analysis.visual_context}
-            - Interactive Elements: {len(analysis.interactive_elements)}
-            - Text Content: {analysis.text_content[:200]}...
-            
-            Available Elements:
-            {self._format_elements_for_guidance(analysis.elements)}
-            
-            Please provide specific guidance on:
-            1. What visual information is relevant to this task?
-            2. Which elements should I interact with?
-            3. What actions should I take based on what I see?
-            4. What should I look for to determine success?
-            
-            Provide step-by-step visual guidance.
-            """
-            
-            # Get guidance from LLM
-            result = self.llm_provider.call_gemini_vision(guidance_prompt, image_path)
-            
-            return {
-                "success": True,
-                "guidance": result.get("text", ""),
-                "analysis": analysis,
-                "suggested_actions": analysis.suggested_actions
-            }
-            
+            steps = [
+                f"Task: {task_description}",
+                f"Detected layout: {analysis.layout.get('layout_type')}",
+                "Suggested next actions:",
+            ] + [f"- {s}" for s in analysis.suggested_actions]
+            return {"success": True, "guidance": "\n".join(steps), "model": "heuristic"}
+
         except Exception as e:
             logger.error(f"Visual guidance failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "guidance": "Unable to provide visual guidance"
-            }
+            return {"success": False, "error": str(e), "guidance": "Unable to provide visual guidance"}
     
     def _format_elements_for_guidance(self, elements: List[UIElement]) -> str:
         """Format elements for guidance prompt"""

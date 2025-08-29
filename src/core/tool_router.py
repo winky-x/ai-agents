@@ -11,7 +11,18 @@ from datetime import datetime
 from loguru import logger
 
 from .policy import PolicyEngine, PolicyValidationResult
-from .llm_providers import call_gemini_flash, call_openrouter_deepseek, choose_model_mode_from_prompt, call_gemini_vision
+from .llm_providers import (
+    call_gemini_flash,
+    call_openrouter_deepseek,
+    choose_model_mode_from_prompt,
+    call_gemini_vision,
+    call_openrouter_generic,
+    call_ui_tars_vision,
+    call_openrouter_gemini_image_gen,
+    call_openrouter_fast_gemini,
+    call_openrouter_fast_gemini_exp,
+    call_openrouter_agentic_reasoning,
+)
 from .browser import BrowserController
 from .rag import SimpleRAG
 from .desktop_automation import DesktopAutomation
@@ -432,16 +443,31 @@ class ToolRouter:
         model = args.get("model")  # optional explicit model override
         images = args.get("images") or []
 
-        # Vision branch
+        # Vision branch (prioritize UI-TARS for GUI/desktop screenshots)
         if images:
-            result = call_gemini_vision(prompt, images)
+            # First try UI-TARS specialized GUI agent
+            result = call_ui_tars_vision(prompt, images)
+            if not result.get("success"):
+                # Fallback to Gemini 2.0 flash exp via OpenRouter
+                result = call_openrouter_generic(prompt, model="google/gemini-2.0-flash-exp:free", image_paths=images)
+            if not result.get("success"):
+                # Final fallback to Google Gemini local vision
+                result = call_gemini_vision(prompt, images)
         elif model:
             # If user forces a model via OpenRouter
-            result = call_openrouter_deepseek(prompt, model=model)
+            result = call_openrouter_generic(prompt, model=model)
         elif mode == "deep":
-            result = call_openrouter_deepseek(prompt)
+            # Prefer powerful agentic reasoning models
+            result = call_openrouter_agentic_reasoning(prompt)
+            if not result.get("success"):
+                result = call_openrouter_deepseek(prompt)
         else:
-            result = call_gemini_flash(prompt)
+            # Fast path: try Gemini 2.5-lite preview first, fallback to 2.0-exp free, then local Gemini
+            result = call_openrouter_fast_gemini(prompt)
+            if not result.get("success"):
+                result = call_openrouter_fast_gemini_exp(prompt)
+            if not result.get("success"):
+                result = call_gemini_flash(prompt)
 
         if result.get("success"):
             return {
