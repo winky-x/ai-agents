@@ -38,9 +38,9 @@ class VectorStore:
         elif backend == "openai":
             self.impl = EmbeddingRAG(base_dir=self.config.base_dir)
         elif backend in ("qdrant", "pinecone"):
-            # Placeholder: not implemented in this commit to keep dependencies light
-            # Could be implemented using qdrant-client or pinecone-client
-            raise NotImplementedError(f"Cloud backend '{backend}' not implemented yet")
+            raise NotImplementedError(
+                "Set VECTORSTORE_BACKEND to 'openai' or 'tfidf'. Qdrant/Pinecone hooks can be implemented later."
+            )
         else:
             raise ValueError(f"Unknown backend: {backend}")
 
