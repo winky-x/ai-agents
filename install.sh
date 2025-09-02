@@ -37,6 +37,9 @@ pip install --upgrade pip
 echo "📚 Installing dependencies..."
 pip install -r requirements.txt
 
+echo "\nTo run the web server:"
+echo "  python -m src.web"
+
 # Install in development mode
 echo "🔨 Installing in development mode..."
 pip install -e .

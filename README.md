@@ -81,6 +81,43 @@ python src/main.py profile admin
 python src/main.py reload
 ```
 
+### Web Server + Frontend
+
+Run FastAPI server and open the minimal UI at `/`:
+
+```bash
+python -m src.web
+```
+
+The server binds to `WEB_UI_HOST`/`WEB_UI_PORT` (defaults: 0.0.0.0:8000).
+
+### Vector Database
+
+- Place your file at `data/vegeta-data.json` (or absolute `/workspace/data/vegeta-data.json`).
+- Ingest via API:
+
+```bash
+curl -X POST http://localhost:8000/api/rag/ingest \
+  -H 'Content-Type: application/json' \
+  -d '{"corpus":"default","file_path":"/workspace/data/vegeta-data.json"}'
+```
+
+Backend selection:
+- Set `OPENAI_API_KEY` to use embeddings (cloud). Otherwise TF‑IDF (local).
+
+Search:
+
+```bash
+curl -X POST http://localhost:8000/api/rag/search \
+  -H 'Content-Type: application/json' \
+  -d '{"corpus":"default","query":"vegeta training"}'
+```
+
+### Image Generation
+
+POST `/api/image/generate` with `{ "prompt": "..." }`.
+Requires `OPENROUTER_API_KEY`. The demo route uses Gemini image preview via OpenRouter.
+
 ### Security Profile Management
 
 ```bash
